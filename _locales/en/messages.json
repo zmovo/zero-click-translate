@@ -1,0 +1,8 @@
+{
+  "extName": {
+    "message": "Zero Click Translate"
+  },
+  "extDescription": {
+    "message": "Select text to see a translation beside it. Defaults to Chinese ↔ English."
+  }
+}

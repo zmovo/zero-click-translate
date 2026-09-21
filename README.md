@@ -1,23 +1,21 @@
-# 划词即翻译
+# Zero Click Translate
 
-选中文字后自动中英互译，翻译结果显示在选区旁边。没有登录、设置页、历史记录或账号体系。
+Select text to see a translation beside it. Defaults to Chinese ↔ English.
 
-第一版不申请 Azure / Google Cloud。翻译顺序是：
+Click the toolbar icon to change the language pair. There is no login, settings page, history, or account system.
 
-1. Google Translate 公开接口（无需 Key）
-2. Google Dictionary 备用接口
-3. MyMemory（匿名额度很小，只作最后兜底）
+Translation order:
 
-等“划词即翻译”确认好用，再换成有正式额度的 Azure / Google Cloud。
+1. Google Translate public endpoint (no API key)
+2. Google Dictionary fallback
+3. MyMemory (small anonymous quota)
 
-## 加载插件
+## Install
 
-1. Chrome 打开 `chrome://extensions`
-2. 打开右上角 **开发者模式**
-3. **加载已解压的扩展程序**，选中本目录
-4. 如果已经加载过，点一次刷新，并刷新 ChatGPT / Google / GitHub 页面
-5. 选中一段中文或英文
+1. Open `chrome://extensions`
+2. Enable **Developer mode**
+3. **Load unpacked** and select this folder
+4. Click the extension icon if you want a pair other than Chinese ↔ English
+5. Select text on ChatGPT, Google, or GitHub
 
-成功标准：选中后大约 0.5～1 秒，选区旁边直接出现翻译，不需要再点任何按钮。
-
-如果页面提示扩展申请访问 `translate.googleapis.com`，需要允许；否则翻译请求会被拦住。
+The translation should appear beside the selection in about 0.5–1 second, with no extra click.

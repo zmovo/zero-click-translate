@@ -19,9 +19,13 @@
   let popupEl = null;
   let missTimer = 0;
   let lastSelectEndAt = 0;
+  let langA = globalThis.ZCT_DEFAULT_LANG_A || 'zh-CN';
+  let langB = globalThis.ZCT_DEFAULT_LANG_B || 'en';
 
   console.info(LOG, '已注入', location.href);
   removeExtraPopups();
+  loadLangPair();
+  chrome.storage.onChanged.addListener(onLangPairChanged);
 
   document.addEventListener('mouseup', onSelectEnd, true);
   document.addEventListener('mousedown', onMouseDown, true);
@@ -38,6 +42,25 @@
     removeExtraPopups();
   });
   popupObserver.observe(document.documentElement, { childList: true });
+
+  function onLangPairChanged(changes, area) {
+    if (area !== 'local') return;
+    if (changes.langA && changes.langA.newValue) langA = changes.langA.newValue;
+    if (changes.langB && changes.langB.newValue) langB = changes.langB.newValue;
+  }
+
+  async function loadLangPair() {
+    try {
+      const data = await chrome.storage.local.get({
+        langA: globalThis.ZCT_DEFAULT_LANG_A || 'zh-CN',
+        langB: globalThis.ZCT_DEFAULT_LANG_B || 'en',
+      });
+      langA = data.langA || globalThis.ZCT_DEFAULT_LANG_A || 'zh-CN';
+      langB = data.langB || globalThis.ZCT_DEFAULT_LANG_B || 'en';
+    } catch (_error) {
+      // Keep defaults if storage is unavailable.
+    }
+  }
 
   function onRuntimeMessage(message, _sender, sendResponse) {
     if (!message || message.type !== 'ZCT_PING') return undefined;
@@ -67,6 +90,11 @@
     window.removeEventListener('scroll', onViewportChange, true);
     window.removeEventListener('resize', onViewportChange, true);
     popupObserver.disconnect();
+    try {
+      chrome.storage.onChanged.removeListener(onLangPairChanged);
+    } catch (_error) {
+      // Ignore if storage is already unavailable.
+    }
     if (missTimer) {
       window.clearTimeout(missTimer);
       missTimer = 0;
@@ -150,7 +178,7 @@
       return {
         captured: false,
         silent: false,
-        reason: '选区只有空格，没有文字',
+        reason: missReason('spaces', text),
         text: '',
         rect,
       };
@@ -164,7 +192,7 @@
       return {
         captured: false,
         silent: false,
-        reason: '在输入框里，打字时不翻译',
+        reason: missReason('editable', text),
         text,
         rect,
       };
@@ -174,7 +202,7 @@
       return {
         captured: false,
         silent: false,
-        reason: '没有中文或英文字母',
+        reason: missReason('letters', text),
         text,
         rect,
       };
@@ -206,16 +234,26 @@
   }
 
   function hasTranslatableLetters(text) {
-    return /[\u4e00-\u9fffA-Za-z]/.test(text);
+    try {
+      return /[\p{L}\p{N}]/u.test(text);
+    } catch (_error) {
+      return /[\u4e00-\u9fffA-Za-z\u3040-\u30ff\uac00-\ud7af\u0400-\u04ff\u0600-\u06ff\u0e00-\u0e7f]/.test(
+        text
+      );
+    }
   }
 
   function detectLang(text) {
-    const zhCount = (text.match(/[\u4e00-\u9fff]/g) || []).length;
-    const enWords = (text.match(/[A-Za-z]+/g) || []).length;
-    if (zhCount > enWords) {
-      return { from: 'zh-Hans', to: 'en', badge: '中 → EN' };
-    }
-    return { from: 'en', to: 'zh-Hans', badge: 'EN → 中' };
+    return typeof globalThis.zctDetectPair === 'function'
+      ? globalThis.zctDetectPair(text, langA, langB)
+      : { from: langA, to: langB, auto: true, badge: 'A ↔ B' };
+  }
+
+  function missReason(key, text) {
+    const zh = isChineseSource(null, text);
+    if (key === 'spaces') return zh ? '选区只有空格，没有文字' : 'Selection is only whitespace';
+    if (key === 'editable') return zh ? '在输入框里，打字时不翻译' : 'Not translating inside input fields';
+    return zh ? '没有可翻译的文字' : 'No translatable text';
   }
 
   function isChineseSource(lang, text) {
@@ -289,6 +327,9 @@
         text: snapshot.text,
         from: snapshot.lang.from,
         to: snapshot.lang.to,
+        langA,
+        langB,
+        auto: Boolean(snapshot.lang.auto),
       });
     } catch (_error) {
       teardown();

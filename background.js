@@ -44,7 +44,7 @@ async function injectIntoOpenTabs() {
         });
         await chrome.scripting.executeScript({
           target: { tabId: tab.id, allFrames: true },
-          files: ['content.js'],
+          files: ['langs.js', 'content.js'],
         });
       } catch (_error) {
         // Restricted pages such as the Chrome Web Store cannot be injected.
@@ -62,18 +62,40 @@ async function tabHasLiveContentScript(tabId) {
   }
 }
 
-async function translate({ text, from, to }) {
+async function translate({ text, from, to, langA, langB, auto }) {
   const source = (text || '').trim();
   if (!source) {
     return { ok: false, error: '没有可翻译的文本' };
   }
 
-  const sl = toLangCode(from);
-  const tl = toLangCode(to);
+  let sl = toLangCode(from);
+  let tl = toLangCode(to);
+  const pairA = toLangCode(langA || 'zh-CN');
+  const pairB = toLangCode(langB || 'en');
+
+  if (auto) {
+    const probeTl = tl || pairB;
+    const probed = await translateGoogleGtx(source, 'auto', probeTl);
+    if (probed.ok && probed.detected && sameLangFamily(probed.detected, probeTl)) {
+      sl = toLangCode(probed.detected);
+      tl = sameLangFamily(sl, pairA) ? pairB : pairA;
+    } else if (probed.ok && probed.translation) {
+      sl = toLangCode(probed.detected || sl);
+      putCache(`${sl}|${probeTl}|${source}`, probed.translation);
+      return {
+        ok: true,
+        translation: probed.translation,
+        engine: 'Google',
+        from: sl,
+        to: probeTl,
+      };
+    }
+  }
+
   const cacheKey = `${sl}|${tl}|${source}`;
   const cached = takeCache(cacheKey);
   if (cached) {
-    return { ok: true, translation: cached, engine: '缓存' };
+    return { ok: true, translation: cached, engine: '缓存', from: sl, to: tl };
   }
 
   const engines = [
@@ -87,7 +109,13 @@ async function translate({ text, from, to }) {
     const result = await engine.run(source, sl, tl);
     if (result.ok && result.translation) {
       putCache(cacheKey, result.translation);
-      return { ok: true, translation: result.translation, engine: engine.name };
+      return {
+        ok: true,
+        translation: result.translation,
+        engine: engine.name,
+        from: sl,
+        to: tl,
+      };
     }
     if (result && result.error) lastError = `${engine.name}：${result.error}`;
   }
@@ -113,7 +141,7 @@ async function translateGoogleGtx(text, sl, tl) {
 
   const translation = parseGtx(payload.data);
   if (!translation) return { ok: false, error: '没有返回翻译结果' };
-  return { ok: true, translation };
+  return { ok: true, translation, detected: parseGtxDetected(payload.data) };
 }
 
 async function translateGoogleClients5(text, sl, tl) {
@@ -205,13 +233,35 @@ function parseClients5(data) {
   return parseGtx(data);
 }
 
+function parseGtxDetected(data) {
+  if (!Array.isArray(data) || data[2] == null) return '';
+  return String(data[2]);
+}
+
 function toLangCode(code) {
-  if (String(code || '').toLowerCase().startsWith('zh')) return 'zh-CN';
-  return 'en';
+  const value = String(code || '').trim();
+  if (!value) return 'en';
+  const lower = value.toLowerCase();
+  if (lower.startsWith('zh')) {
+    if (/(tw|hk|hant)/.test(lower)) return 'zh-TW';
+    return 'zh-CN';
+  }
+  return lower.split('-')[0];
+}
+
+function sameLangFamily(left, right) {
+  return langFamily(left) === langFamily(right);
+}
+
+function langFamily(code) {
+  const value = String(code || '').toLowerCase();
+  if (value.startsWith('zh')) return 'zh';
+  return value.split('-')[0] || 'en';
 }
 
 function toMyMemoryLang(code) {
-  return toLangCode(code);
+  const normalized = toLangCode(code);
+  return normalized.startsWith('zh') ? 'zh-CN' : normalized;
 }
 
 function isQuotaMessage(text) {
