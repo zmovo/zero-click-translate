@@ -1,0 +1,24 @@
+{
+  "manifest_version": 3,
+  "name": "划词即翻译",
+  "version": "0.1.0",
+  "description": "选中文字后自动中英互译，结果直接显示在选区旁边。",
+  "minimum_chrome_version": "114",
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://*/*", "http://*/*"],
+      "js": ["content.js"],
+      "css": ["content.css"],
+      "run_at": "document_idle",
+      "all_frames": true
+    }
+  ],
+  "permissions": ["scripting"],
+  "host_permissions": [
+    "http://*/*",
+    "https://*/*"
+  ]
+}

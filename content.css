@@ -1,0 +1,91 @@
+#zct-popup {
+  position: fixed;
+  inset: unset;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  overflow: visible;
+  z-index: 2147483647;
+  color-scheme: light;
+}
+
+#zct-popup:popover-open {
+  position: fixed;
+  inset: unset;
+  margin: 0;
+}
+
+#zct-popup .zct-card {
+  all: initial;
+  box-sizing: border-box;
+  display: block;
+  width: max-content;
+  max-width: 360px;
+  min-width: 160px;
+  max-height: 240px;
+  overflow: auto;
+  padding: 10px 12px 12px;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 8px 28px rgba(15, 23, 42, 0.16);
+  color: #0f172a;
+  cursor: default;
+  user-select: text;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC',
+    'Microsoft YaHei', sans-serif;
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+#zct-popup .zct-badge {
+  display: block;
+  margin-bottom: 6px;
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  line-height: 1.2;
+}
+
+#zct-popup .zct-source {
+  margin-bottom: 6px;
+  color: #64748b;
+  font-size: 12px;
+  line-height: 1.4;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  word-break: break-word;
+}
+
+#zct-popup .zct-source:empty {
+  display: none;
+}
+
+#zct-popup .zct-body {
+  display: block;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: #0f172a;
+  font-size: 14px;
+}
+
+#zct-popup .zct-card[data-state='loading'] .zct-body {
+  color: #64748b;
+}
+
+#zct-popup .zct-card[data-state='miss'] .zct-badge {
+  color: #b45309;
+}
+
+#zct-popup .zct-card[data-state='miss'] .zct-body {
+  color: #b45309;
+}
+
+#zct-popup .zct-card[data-state='error'] .zct-badge,
+#zct-popup .zct-card[data-state='error'] .zct-body {
+  color: #b91c1c;
+}
