@@ -12,22 +12,18 @@ try {
   // Translate without a quota gate if this helper is missing.
 }
 
-try {
-  importScripts('secrets.js');
-} catch (_error) {
-  // secrets.js is optional and must not be committed.
-}
-
 const CACHE_LIMIT = 80;
 const FETCH_TIMEOUT_MS = 8000;
 const MYMEMORY_MAX_Q_BYTES = 500;
+const CLOUD_RUN_TRANSLATE_URL =
+  'https://zero-click-translate-api-475510566240.europe-west1.run.app';
 const translationCache = new Map();
 const textEncoder = new TextEncoder();
 
 const PAGE_SCRIPT_ID = 'zct-content';
 const LOG = '[划词即翻译]';
 const ENGINE_ENDPOINTS = {
-  Google官方: 'translation.googleapis.com/language/translate/v2',
+  Cloud: 'zero-click-translate-api-475510566240.europe-west1.run.app',
   Google网页: 'translate.googleapis.com/translate_a/single',
   Google备用: 'clients5.google.com/translate_a/t',
   MyMemory: 'api.mymemory.translated.net/get',
@@ -35,7 +31,7 @@ const ENGINE_ENDPOINTS = {
 };
 let applyEnabledChain = Promise.resolve();
 
-console.info(LOG, '官方API Key', getGoogleApiKey() ? '已加载' : '未加载');
+console.info(LOG, '翻译服务', CLOUD_RUN_TRANSLATE_URL);
 
 chrome.runtime.onInstalled.addListener(() => {
   restoreInjectionFromStorage();
@@ -226,7 +222,12 @@ async function syncEnabledBadge() {
 }
 
 async function openUpgradePage() {
-  await chrome.tabs.create({ url: chrome.runtime.getURL('pricing.html') });
+  const url = chrome.runtime.getURL('pricing.html');
+  console.info(LOG, '打开 Upgrade', url);
+  const tab = await chrome.tabs.create({ url, active: true });
+  if (!tab || !tab.id) {
+    throw new Error('未能打开 Upgrade 页面');
+  }
 }
 
 function countSourceChars(text) {
@@ -273,7 +274,11 @@ async function translate({ text, from, to, langA, langB, auto }) {
     return {
       ok: false,
       reason: 'QUOTA_EXCEEDED',
-      error: 'Free limit reached for today',
+      error: 'Free limit reached this month',
+      resetLabel:
+        globalThis.zctQuota && typeof globalThis.zctQuota.resetLabel === 'function'
+          ? globalThis.zctQuota.resetLabel()
+          : 'Resets on the 1st at 00:00',
     };
   }
 
@@ -282,8 +287,6 @@ async function translate({ text, from, to, langA, langB, auto }) {
   const pairA = toLangCode(langA || 'zh-CN');
   const pairB = toLangCode(langB || 'en');
 
-  const hasOfficialKey = Boolean(getGoogleApiKey());
-  const officialKey = hasOfficialKey ? '已加载' : '未加载';
   const trace = [];
   const note = (action, name, extra) => {
     const line = extra ? `${action} ${name} ${extra}` : `${action} ${name}`;
@@ -291,15 +294,13 @@ async function translate({ text, from, to, langA, langB, auto }) {
     console.info(LOG, line, ENGINE_ENDPOINTS[name] || '');
   };
 
-  note('开始', hasOfficialKey ? 'Google官方' : '无官方Key', officialKey);
+  note('开始', 'Cloud');
 
   if (auto) {
     const probeTl = tl || pairB;
-    const probeName = hasOfficialKey ? 'Google官方' : 'Google网页';
+    const probeName = 'Cloud';
     note('探测', probeName);
-    const probed = hasOfficialKey
-      ? await translateGoogleOfficial(source, 'auto', probeTl)
-      : await translateGoogleGtx(source, 'auto', probeTl);
+    const probed = await translateCloudRun(source, 'auto', probeTl);
     if (probed.ok && probed.detected && sameLangFamily(probed.detected, probeTl)) {
       sl = toLangCode(probed.detected);
       tl = sameLangFamily(sl, pairA) ? pairB : pairA;
@@ -314,7 +315,6 @@ async function translate({ text, from, to, langA, langB, auto }) {
           translation: probed.translation,
           engine: probeName,
           endpoint: ENGINE_ENDPOINTS[probeName],
-          officialKey,
           trace,
           from: sl,
           to: probeTl,
@@ -336,7 +336,6 @@ async function translate({ text, from, to, langA, langB, auto }) {
         translation: cached,
         engine: '缓存',
         endpoint: ENGINE_ENDPOINTS['缓存'],
-        officialKey,
         trace,
         from: sl,
         to: tl,
@@ -345,15 +344,12 @@ async function translate({ text, from, to, langA, langB, auto }) {
     );
   }
 
-  const engines = [];
-  if (hasOfficialKey) {
-    engines.push({ name: 'Google官方', run: translateGoogleOfficial });
-  }
-  engines.push(
+  const engines = [
+    { name: 'Cloud', run: translateCloudRun },
     { name: 'Google网页', run: translateGoogleGtx },
     { name: 'Google备用', run: translateGoogleClients5 },
-    { name: 'MyMemory', run: translateMyMemory }
-  );
+    { name: 'MyMemory', run: translateMyMemory },
+  ];
   let lastError = '翻译失败';
 
   for (const engine of engines) {
@@ -368,7 +364,6 @@ async function translate({ text, from, to, langA, langB, auto }) {
           translation: result.translation,
           engine: engine.name,
           endpoint: ENGINE_ENDPOINTS[engine.name],
-          officialKey,
           trace,
           from: sl,
           to: tl,
@@ -381,11 +376,7 @@ async function translate({ text, from, to, langA, langB, auto }) {
   }
 
   console.info(LOG, '全部失败', lastError);
-  return { ok: false, error: lastError, officialKey, trace };
-}
-
-function getGoogleApiKey() {
-  return String(globalThis.GOOGLE_TRANSLATE_API_KEY || '').trim();
+  return { ok: false, error: lastError, trace };
 }
 
 function decodeHtmlEntities(text) {
@@ -397,43 +388,35 @@ function decodeHtmlEntities(text) {
     .replace(/&gt;/g, '>');
 }
 
-async function translateGoogleOfficial(text, sl, tl) {
-  const key = getGoogleApiKey();
-  if (!key) return { ok: false, error: '未配置 Google Translate API Key' };
-
-  const url = new URL('https://translation.googleapis.com/language/translate/v2');
-  url.searchParams.set('key', key);
-
+async function translateCloudRun(text, sl, tl) {
   const body = {
-    q: text,
+    text,
     target: tl,
-    format: 'text',
   };
   if (sl && sl !== 'auto') body.source = sl;
 
-  const payload = await requestJson(url, {
+  const payload = await requestJson(CLOUD_RUN_TRANSLATE_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json; charset=UTF-8' },
     body: JSON.stringify(body),
   });
   if (!payload.ok) {
-    const apiMessage =
-      payload.data && payload.data.error && payload.data.error.message;
-    return { ok: false, error: apiMessage || payload.error || 'Google API 请求失败' };
+    const raw = payload.data && payload.data.error;
+    const apiMessage = raw && raw.message ? raw.message : raw;
+    return {
+      ok: false,
+      error: apiMessage || payload.error || 'Cloud 翻译失败',
+    };
   }
 
-  const item =
-    payload.data &&
-    payload.data.data &&
-    payload.data.data.translations &&
-    payload.data.data.translations[0];
-  const translation = item && decodeHtmlEntities(item.translatedText);
+  const translation =
+    payload.data && decodeHtmlEntities(payload.data.translatedText);
   if (!translation) return { ok: false, error: '没有返回翻译结果' };
 
   return {
     ok: true,
     translation,
-    detected: item.detectedSourceLanguage || '',
+    detected: payload.data.detectedSourceLanguage || '',
   };
 }
 

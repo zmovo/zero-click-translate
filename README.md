@@ -6,18 +6,10 @@ Click the toolbar icon to turn translation on or off, or to change the language 
 
 Translation order:
 
-1. Official Google Cloud Translation API (requires a local `secrets.js`)
+1. Cloud Run translate API
 2. Google Translate webpage fallback
 3. Google Dictionary fallback
 4. MyMemory
-
-## API key
-
-1. Copy `secrets.example.js` to `secrets.js`
-2. Put your Cloud Translation API key in `GOOGLE_TRANSLATE_API_KEY`
-3. Do not commit `secrets.js`
-
-In Google Cloud, enable **Cloud Translation API** and restrict the key to that API.
 
 ## Install
 

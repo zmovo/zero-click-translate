@@ -3,7 +3,7 @@
     "message": "划词即翻译 – Instant Translator"
   },
   "extDescription": {
-    "message": "选中即译。默认中英互译，也可更换语言对。"
+    "message": "选中文字，译文出现在旁边。默认中英互译，也可更换语言对。"
   },
   "toggleTranslate": {
     "message": "翻译"

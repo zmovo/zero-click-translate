@@ -5,7 +5,6 @@ const selectB = document.getElementById('langB');
 const enabledEl = document.getElementById('enabled');
 const powerLabel = document.getElementById('powerLabel');
 const quotaCountEl = document.getElementById('quotaCount');
-const quotaBarEl = document.getElementById('quotaBar');
 const quotaHintEl = document.getElementById('quotaHint');
 const defaultA = globalThis.ZCT_DEFAULT_LANG_A || 'zh-CN';
 const defaultB = globalThis.ZCT_DEFAULT_LANG_B || 'en';
@@ -103,19 +102,16 @@ function formatQuotaNumber(value) {
 }
 
 function renderQuota(state) {
-  if (!quotaCountEl || !quotaBarEl || !quotaHintEl) return;
+  if (!quotaCountEl || !quotaHintEl) return;
   if (!state) return;
 
   if (state.plan === 'PRO') {
-    quotaCountEl.textContent = 'Unlimited';
-    quotaBarEl.style.width = '100%';
+    quotaCountEl.textContent = '';
     quotaHintEl.hidden = true;
     return;
   }
 
   quotaCountEl.textContent = `${formatQuotaNumber(state.todayUsed)} / ${formatQuotaNumber(state.dailyLimit)}`;
-  const ratio = state.dailyLimit ? Math.min(1, state.todayUsed / state.dailyLimit) : 0;
-  quotaBarEl.style.width = `${Math.round(ratio * 100)}%`;
   quotaHintEl.hidden = !state.low;
 }
 

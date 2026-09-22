@@ -32,6 +32,8 @@
   document.addEventListener('mouseup', onSelectEnd, true);
   document.addEventListener('mousedown', onMouseDown, true);
   document.addEventListener('keydown', onKeyDown, true);
+  window.addEventListener('pointerdown', onUpgradeEvent, true);
+  window.addEventListener('click', onUpgradeEvent, true);
   window.addEventListener('scroll', onViewportChange, true);
   window.addEventListener('resize', onViewportChange, true);
   chrome.runtime.onMessage.addListener(onRuntimeMessage);
@@ -131,6 +133,8 @@
     document.removeEventListener('mouseup', onSelectEnd, true);
     document.removeEventListener('mousedown', onMouseDown, true);
     document.removeEventListener('keydown', onKeyDown, true);
+    window.removeEventListener('pointerdown', onUpgradeEvent, true);
+    window.removeEventListener('click', onUpgradeEvent, true);
     window.removeEventListener('scroll', onViewportChange, true);
     window.removeEventListener('resize', onViewportChange, true);
     popupObserver.disconnect();
@@ -164,7 +168,7 @@
       return;
     }
     if (event.button !== 0) return;
-    if (eventTouchesPopup(event)) return;
+    if (isUpgradeTarget(event) || eventTouchesPopup(event)) return;
     hidePopup();
   }
 
@@ -191,7 +195,7 @@
       return;
     }
     if (event.button != null && event.button !== 0) return;
-    if (eventTouchesPopup(event)) return;
+    if (isUpgradeTarget(event) || eventTouchesPopup(event)) return;
     if (!settingsReady || !enabled) return;
 
     const now = Date.now();
@@ -247,13 +251,7 @@
     }
 
     if (node && isEditable(node)) {
-      return {
-        captured: false,
-        silent: false,
-        reason: missReason('editable', text),
-        text,
-        rect,
-      };
+      return { captured: false, silent: true, reason: '在输入框里' };
     }
 
     if (!hasTranslatableLetters(text)) {
@@ -343,7 +341,6 @@
       failed: 'Failed',
       engine(name) {
         if (name === '缓存') return 'Cache';
-        if (name === 'Google官方') return 'Google official';
         if (name === 'Google网页') return 'Google webpage';
         if (name === 'Google备用') return 'Google fallback';
         return name || '';
@@ -429,9 +426,9 @@
     if (result && result.reason === 'QUOTA_EXCEEDED') {
       renderPopup({
         state: 'quota',
-        badge: '',
+        badge: 'Free limit reached',
         source: '',
-        body: 'Free limit reached for today\nResets tomorrow',
+        body: result.resetLabel || 'Resets on the 1st at 00:00',
         action: 'Upgrade',
         rect: snapshot.rect,
       });
@@ -442,7 +439,6 @@
       const engineName = copy.engine(result.engine);
       const engine = engineName ? ` · ${engineName}` : '';
       console.info(LOG, '翻译成功', result.engine || engineName, result.endpoint || '', result.translation);
-      console.info(LOG, '官方Key', result.officialKey || '未知');
       if (result.trace && result.trace.length) {
         console.info(LOG, '链路', result.trace.join(' → '));
       }
@@ -478,12 +474,8 @@
     if (existing) {
       popupEl = existing;
       if (!popupEl.querySelector('.zct-action')) {
-        const button = document.createElement('button');
-        button.type = 'button';
-        button.className = 'zct-action';
-        button.hidden = true;
         const card = popupEl.querySelector('.zct-card');
-        if (card) card.appendChild(button);
+        if (card) card.appendChild(createUpgradeLink());
       }
       attachPopup(popupEl);
       return popupEl;
@@ -497,7 +489,7 @@
       '<div class="zct-badge"></div>' +
       '<div class="zct-source"></div>' +
       '<div class="zct-body"></div>' +
-      '<button type="button" class="zct-action" hidden></button>' +
+      '<a class="zct-action" hidden target="_blank" rel="noopener"></a>' +
       '</div>';
 
     attachPopup(popupEl);
@@ -547,21 +539,82 @@
     if (popup.parentElement !== document.documentElement) {
       document.documentElement.appendChild(popup);
     }
-    if (popup.dataset.zctBound === '1') return;
-    popup.dataset.zctBound = '1';
-    popup.addEventListener('click', onPopupClick);
   }
 
-  function onPopupClick(event) {
-    const button = event.target && event.target.closest && event.target.closest('.zct-action');
-    if (!button || button.hidden) return;
+  function upgradeUrl() {
+    try {
+      return chrome.runtime.getURL('pricing.html');
+    } catch (_error) {
+      return '';
+    }
+  }
+
+  function createUpgradeLink() {
+    const link = document.createElement('a');
+    link.className = 'zct-action';
+    link.hidden = true;
+    link.target = '_blank';
+    link.rel = 'noopener';
+    const url = upgradeUrl();
+    if (url) link.href = url;
+    return link;
+  }
+
+  function isUpgradeTarget(event) {
+    const nodes = [];
+    if (event && typeof event.composedPath === 'function') {
+      try {
+        nodes.push.apply(nodes, event.composedPath());
+      } catch (_error) {
+        // Fall through to parent walk.
+      }
+    }
+    let node = event && event.target;
+    if (node && node.nodeType === 3) node = node.parentNode;
+    while (node) {
+      nodes.push(node);
+      node = node.parentNode || node.host;
+    }
+    return nodes.some(
+      (item) =>
+        item &&
+        item.classList &&
+        item.classList.contains('zct-action') &&
+        !item.hidden &&
+        !item.hasAttribute('hidden')
+    );
+  }
+
+  let lastUpgradeAt = 0;
+
+  function openUpgrade() {
+    const now = Date.now();
+    if (now - lastUpgradeAt < 800) return;
+    lastUpgradeAt = now;
+    const url = upgradeUrl();
+    console.info(LOG, '打开 Upgrade', url);
+    try {
+      chrome.runtime.sendMessage({ type: 'ZCT_UPGRADE' }, (response) => {
+        if (chrome.runtime.lastError || !response || !response.ok) {
+          console.info(
+            LOG,
+            'Upgrade 消息失败',
+            chrome.runtime.lastError && chrome.runtime.lastError.message
+          );
+          if (url) window.open(url, '_blank', 'noopener');
+        }
+      });
+    } catch (_error) {
+      if (url) window.open(url, '_blank', 'noopener');
+    }
+  }
+
+  function onUpgradeEvent(event) {
+    if (!isUpgradeTarget(event)) return;
     event.preventDefault();
     event.stopPropagation();
-    try {
-      chrome.runtime.sendMessage({ type: 'ZCT_UPGRADE' });
-    } catch (_error) {
-      // Extension context may be gone.
-    }
+    if (event.stopImmediatePropagation) event.stopImmediatePropagation();
+    openUpgrade();
   }
 
   function renderPopup({ state, badge, source, sourceLabel, body, action, rect }) {
@@ -579,6 +632,8 @@
     if (actionEl) {
       actionEl.hidden = !action;
       actionEl.textContent = action || '';
+      const url = upgradeUrl();
+      if (url) actionEl.setAttribute('href', url);
     }
 
     if (missTimer) {

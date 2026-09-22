@@ -16,5 +16,11 @@
   "host_permissions": [
     "http://*/*",
     "https://*/*"
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["pricing.html", "pricing.js", "quotaManager.js", "entitlementManager.js"],
+      "matches": ["http://*/*", "https://*/*"]
+    }
   ]
 }

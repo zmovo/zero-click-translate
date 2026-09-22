@@ -1,16 +1,33 @@
 'use strict';
 
 (function (root) {
-  const FREE_DAILY_LIMIT = 3000;
+  const FREE_MONTHLY_LIMIT = 10000;
   const LOW_RATIO = 0.2;
   const STORAGE_KEY = 'zctQuota';
 
-  function todayStamp() {
+  function periodStamp() {
     const now = new Date();
     const year = now.getFullYear();
     const month = String(now.getMonth() + 1).padStart(2, '0');
-    const day = String(now.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
+    return `${year}-${month}`;
+  }
+
+  function nextResetAt() {
+    const reset = new Date();
+    reset.setMonth(reset.getMonth() + 1, 1);
+    reset.setHours(0, 0, 0, 0);
+    return reset;
+  }
+
+  function resetLabel() {
+    const reset = nextResetAt();
+    const hours = String(reset.getHours()).padStart(2, '0');
+    const minutes = String(reset.getMinutes()).padStart(2, '0');
+    const date = reset.toLocaleDateString(undefined, {
+      month: 'short',
+      day: 'numeric',
+    });
+    return `Resets on ${date} at ${hours}:${minutes}`;
   }
 
   function countChars(text) {
@@ -30,7 +47,7 @@
 
   async function getState() {
     const plan = await getPlan();
-    const today = todayStamp();
+    const period = periodStamp();
     let stored = null;
     try {
       const data = await chrome.storage.local.get({ [STORAGE_KEY]: null });
@@ -39,33 +56,35 @@
       stored = null;
     }
 
-    const dailyLimit = FREE_DAILY_LIMIT;
-    let todayUsed = 0;
-    if (stored && stored.date === today) {
-      todayUsed = Math.max(0, Number(stored.todayUsed) || 0);
-    } else if (!stored || stored.date !== today) {
-      await persist({ date: today, todayUsed: 0, dailyLimit });
+    const monthlyLimit = FREE_MONTHLY_LIMIT;
+    let used = 0;
+    if (stored && stored.date === period) {
+      used = Math.max(0, Number(stored.todayUsed) || 0);
+    } else {
+      await persist({ date: period, todayUsed: 0, dailyLimit: monthlyLimit });
     }
 
     if (plan === 'PRO') {
       return {
         plan,
-        dailyLimit,
+        dailyLimit: monthlyLimit,
+        monthlyLimit,
         todayUsed: 0,
         remaining: Number.MAX_SAFE_INTEGER,
-        date: today,
+        date: period,
         low: false,
       };
     }
 
-    const remaining = Math.max(0, dailyLimit - todayUsed);
+    const remaining = Math.max(0, monthlyLimit - used);
     return {
       plan,
-      dailyLimit,
-      todayUsed: Math.min(todayUsed, dailyLimit),
+      dailyLimit: monthlyLimit,
+      monthlyLimit,
+      todayUsed: Math.min(used, monthlyLimit),
       remaining,
-      date: today,
-      low: remaining > 0 && remaining / dailyLimit < LOW_RATIO,
+      date: period,
+      low: remaining > 0 && remaining / monthlyLimit < LOW_RATIO,
     };
   }
 
@@ -98,10 +117,13 @@
   }
 
   root.zctQuota = {
-    FREE_DAILY_LIMIT,
+    FREE_MONTHLY_LIMIT,
+    FREE_DAILY_LIMIT: FREE_MONTHLY_LIMIT,
     countChars,
     getState,
     canTranslate,
     consume,
+    nextResetAt,
+    resetLabel,
   };
 })(globalThis);

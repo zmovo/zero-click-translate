@@ -3,7 +3,7 @@
     "message": "Zero Click Translate – Instant Translator"
   },
   "extDescription": {
-    "message": "Instant translator for selected text. Zero-click Chinese ↔ English, plus more language pairs."
+    "message": "Select text to see a translation beside it. Chinese ↔ English by default, or pick another pair."
   },
   "toggleTranslate": {
     "message": "Translate"
