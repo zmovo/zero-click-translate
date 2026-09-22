@@ -23,7 +23,7 @@ const textEncoder = new TextEncoder();
 const PAGE_SCRIPT_ID = 'zct-content';
 const LOG = '[划词即翻译]';
 const ENGINE_ENDPOINTS = {
-  Cloud: 'zero-click-translate-api-475510566240.europe-west1.run.app',
+  Cloud: 'zero-click-translate-api-475510566240.europe-west1.run.app/translate',
   Google网页: 'translate.googleapis.com/translate_a/single',
   Google备用: 'clients5.google.com/translate_a/t',
   MyMemory: 'api.mymemory.translated.net/get',
@@ -388,34 +388,78 @@ function decodeHtmlEntities(text) {
     .replace(/&gt;/g, '>');
 }
 
-async function getClientId() {
-  const result = await chrome.storage.local.get('clientId');
+async function getInstallationId() {
+  const result = await chrome.storage.local.get('installationId');
 
-  if (result.clientId) {
-    return result.clientId;
+  if (result.installationId) {
+    return result.installationId;
   }
 
-  const clientId = crypto.randomUUID();
+  const installationId = crypto.randomUUID();
 
-  await chrome.storage.local.set({ clientId });
+  await chrome.storage.local.set({
+    installationId,
+  });
 
-  return clientId;
+  return installationId;
 }
 
-async function translateCloudRun(text, sl, tl) {
-  const clientId = await getClientId();
+async function getAuthToken() {
+  const result = await chrome.storage.local.get('authToken');
+
+  if (result.authToken) {
+    return result.authToken;
+  }
+
+  const installationId = await getInstallationId();
+  const payload = await requestJson(`${CLOUD_RUN_TRANSLATE_URL}/register`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      installationId,
+    }),
+  });
+  const token = payload && payload.ok && payload.data && payload.data.token;
+  if (!token) {
+    return '';
+  }
+
+  await chrome.storage.local.set({
+    authToken: token,
+  });
+
+  return token;
+}
+
+async function requestCloudTranslate(token, text, sl, tl) {
   const body = {
-    clientId,
     text,
     target: tl,
   };
   if (sl && sl !== 'auto') body.source = sl;
 
-  const payload = await requestJson(CLOUD_RUN_TRANSLATE_URL, {
+  return requestJson(`${CLOUD_RUN_TRANSLATE_URL}/translate`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json; charset=UTF-8' },
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
     body: JSON.stringify(body),
   });
+}
+
+async function translateCloudRun(text, sl, tl) {
+  const token = await getAuthToken();
+  if (!token) return { ok: false, error: '注册失败' };
+
+  let payload = await requestCloudTranslate(token, text, sl, tl);
+  if (!payload.ok && payload.status === 401) {
+    await chrome.storage.local.remove('authToken');
+    const nextToken = await getAuthToken();
+    if (!nextToken) return { ok: false, error: '注册失败' };
+    payload = await requestCloudTranslate(nextToken, text, sl, tl);
+  }
+
   if (!payload.ok) {
     const raw = payload.data && payload.data.error;
     const apiMessage = raw && raw.message ? raw.message : raw;
@@ -528,11 +572,15 @@ async function requestJson(url, options) {
   }
 
   if (!response.ok) {
-    const apiMessage = data && data.error && data.error.message;
+    const apiMessage =
+      (data && data.error && data.error.message) ||
+      (data && typeof data.error === 'string' ? data.error : '') ||
+      `翻译接口错误（${response.status}）`;
     return {
       ok: false,
-      error: apiMessage || `翻译接口错误（${response.status}）`,
+      error: apiMessage,
       data,
+      status: response.status,
     };
   }
 
