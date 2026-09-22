@@ -21,9 +21,10 @@
   `https://zmovo.github.io/zero-click-translate/privacy.html`  
   Interim: `https://github.com/zmovo/zero-click-translate/blob/main/PRIVACY.md`
 - Homepage / support: `https://github.com/zmovo/zero-click-translate`
-- Store icon: `icons/icon128.png`
-- Small tile: `store/listing/tile-440x280.png`
-- Screenshots: `store/listing/shot-overlay.png`, `shot-popup.png`, `shot-quota.png`
+- Store icon: `store/listing/store-icon-128.png`
+- Small tile: `store/listing/tile-440x280.jpg` (exact 440×280; use JPEG if PNG is rejected)
+- Screenshots: `store/listing/shot-overlay.jpg`, `shot-popup.jpg`, `shot-quota.jpg`
+- Category: **Tools** (or Workflow & Planning / Education if Tools is unavailable)
 
 ## Single purpose (required)
 

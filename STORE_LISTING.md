@@ -1,6 +1,8 @@
 # Chrome Web Store listing copy
 
-Paste these fields into the developer dashboard. Category: **Productivity**. Language: English (United States). Add a Chinese (China) listing with the Chinese block below.
+Paste these fields into the developer dashboard. Language: English (United States). Add a Chinese (China) listing with the Chinese block below.
+
+**Category:** prefer **Tools**. If that is missing, try **Workflow & Planning** or **Education**. Do not block on “Productivity” — some developer dashboards hide or grey it out; pick the closest available Tools-like option and continue.
 
 Privacy policy URL (preferred, after GitHub Pages is enabled on `main` / root):
 
@@ -89,8 +91,8 @@ Send the selected text to our translate API (`/register`, `/translate`).
 
 ## Images to upload
 
-From `store/listing/` after screenshots are generated:
+From `store/listing/`:
 
-- Store icon: `icons/icon128.png`
-- Small tile: `tile-440x280.png`
-- Screenshots (1280×800): `shot-overlay.png`, `shot-popup.png`, `shot-quota.png`
+- Store icon: `store-icon-128.png` (opaque 128×128; prefer this over toolbar `icons/icon128.png` if upload complains about transparency)
+- Small tile: **`tile-440x280.jpg`** (exact 440×280 JPEG — use this if PNG is rejected)
+- Screenshots (1280×800): prefer `shot-overlay.jpg`, `shot-popup.jpg`, `shot-quota.jpg`

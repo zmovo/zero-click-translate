@@ -10,41 +10,50 @@
         width: 440px;
         height: 280px;
         overflow: hidden;
-        font: 16px/1.35 -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC',
-          'Microsoft YaHei', sans-serif;
-        color: #fff;
-        background: #1d4ed8;
+        font: 16px/1.35 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+        color: #1a2b2e;
+        background: #e8eee9;
       }
       .tile {
         box-sizing: border-box;
         width: 440px;
         height: 280px;
         padding: 28px 28px 24px;
-        background: linear-gradient(160deg, #3b82f6 0%, #1d4ed8 70%);
+        background:
+          radial-gradient(120% 90% at 100% 0%, rgba(90, 140, 130, 0.18), transparent 55%),
+          linear-gradient(155deg, #f4f6f3 0%, #e4ebe6 55%, #d7e2dc 100%);
       }
       .mark {
+        display: flex;
+        align-items: center;
+        justify-content: center;
         width: 48px;
         height: 48px;
         margin-bottom: 18px;
         border-radius: 12px;
-        background: #fff center/40px 40px no-repeat;
-        background-image: url('../../icons/icon128.png');
+        background: #2f5d62;
+        color: #f4f7f5;
+        font-size: 15px;
+        font-weight: 600;
+        letter-spacing: -0.02em;
       }
       h1 {
         margin: 0 0 8px;
         font-size: 26px;
         letter-spacing: -0.03em;
+        color: #1a2b2e;
       }
       p {
         margin: 0;
-        color: #dbeafe;
+        max-width: 320px;
+        color: #4d6468;
         font-size: 15px;
       }
     </style>
   </head>
   <body>
     <div class="tile">
-      <div class="mark"></div>
+      <div class="mark" aria-hidden="true">A↔文</div>
       <h1>Zero Click Translate</h1>
       <p>Select text. The translation appears beside it.</p>
     </div>
