@@ -207,13 +207,9 @@
       if (snapshot.silent) return;
 
       if (!snapshot.captured) {
-        const copy = uiCopy(snapshot.lang, snapshot.text);
         console.info(LOG, '未捕捉', snapshot.reason, snapshot.text || '');
         renderPopup({
           state: 'miss',
-          badge: copy.missed,
-          source: snapshot.text || '',
-          sourceLabel: copy.selection,
           body: snapshot.reason,
           rect: snapshot.rect,
         });
@@ -398,9 +394,6 @@
     const copy = uiCopy(snapshot.lang, snapshot.text);
     renderPopup({
       state: 'loading',
-      badge: `${copy.captured} · ${snapshot.lang.badge}`,
-      source: snapshot.text,
-      sourceLabel: copy.selection,
       body: copy.translating,
       rect: snapshot.rect,
     });
@@ -437,16 +430,12 @@
 
     if (result && result.ok) {
       const engineName = copy.engine(result.engine);
-      const engine = engineName ? ` · ${engineName}` : '';
       console.info(LOG, '翻译成功', result.engine || engineName, result.endpoint || '', result.translation);
       if (result.trace && result.trace.length) {
         console.info(LOG, '链路', result.trace.join(' → '));
       }
       renderPopup({
         state: 'ready',
-        badge: `${copy.captured}${engine}`,
-        source: snapshot.text,
-        sourceLabel: copy.selection,
         body: result.translation,
         rect: snapshot.rect,
       });
@@ -460,9 +449,6 @@
     }
     renderPopup({
       state: 'error',
-      badge: `${copy.captured} · ${copy.failed}`,
-      source: snapshot.text,
-      sourceLabel: copy.selection,
       body: error,
       rect: snapshot.rect,
     });
