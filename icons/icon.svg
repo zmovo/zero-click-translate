@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="Zero Click Translate">
+  <rect x="4" y="4" width="120" height="120" rx="28" fill="#2563EB"/>
+  <text x="34" y="80" fill="#fff" font-size="46" font-family="Segoe UI, Arial, sans-serif" font-weight="600" text-anchor="middle">A</text>
+  <path d="M52 64h24" stroke="#fff" stroke-width="3.2" stroke-linecap="round"/>
+  <path d="M55.2 59.4 51 64l4.2 4.6" fill="none" stroke="#fff" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M72.8 59.4 77 64l-4.2 4.6" fill="none" stroke="#fff" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="96" y="82" fill="#fff" font-size="42" font-family="Microsoft YaHei, PingFang SC, sans-serif" text-anchor="middle">?</text>
+</svg>

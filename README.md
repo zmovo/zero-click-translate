@@ -4,12 +4,22 @@ Select text to see a translation beside it. Defaults to Chinese ↔ English.
 
 Click the toolbar icon to turn translation on or off, or to change the language pair. While translation is off, the extension does not inject scripts into pages. There is no login, settings page, history, or account system.
 
+[Privacy policy](PRIVACY.md) · [Chrome Web Store listing copy](STORE_LISTING.md) · [Submit checklist](store/SUBMIT.md)
+
 Translation order:
 
 1. Cloud Run translate API
 2. Google Translate webpage fallback
 3. Google Dictionary fallback
 4. MyMemory
+
+## Store package
+
+```powershell
+powershell -File scripts\pack.ps1
+```
+
+Output: `dist/zero-click-translate-1.0.0.zip` (runtime files + icons only).
 
 ## Install
 

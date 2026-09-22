@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Privacy Policy — Zero Click Translate</title>
+    <style>
+      body {
+        margin: 0;
+        padding: 48px 20px 72px;
+        font: 16px/1.55 -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC',
+          'Microsoft YaHei', sans-serif;
+        color: #0f172a;
+        background: #f8fafc;
+      }
+      main {
+        max-width: 680px;
+        margin: 0 auto;
+        padding: 28px 32px 36px;
+        border: 1px solid rgba(15, 23, 42, 0.08);
+        border-radius: 16px;
+        background: #fff;
+      }
+      .brand {
+        margin: 0 0 8px;
+        color: #64748b;
+        font-size: 12px;
+        font-weight: 600;
+      }
+      h1 {
+        margin: 0 0 8px;
+        font-size: 28px;
+        letter-spacing: -0.03em;
+      }
+      h2 {
+        margin: 28px 0 8px;
+        font-size: 18px;
+      }
+      p,
+      li {
+        color: #334155;
+      }
+      ul {
+        padding-left: 1.2em;
+      }
+      a {
+        color: #1d4ed8;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <p class="brand">Zero Click Translate</p>
+      <h1>Privacy Policy</h1>
+      <p>Last updated: 22 September 2026</p>
+      <p>
+        Zero Click Translate is a Chrome extension that shows a translation next to text you
+        select. It does not use accounts, logins, browsing history, or advertising.
+      </p>
+      <h2>What we process</h2>
+      <p>
+        When translation is on and you select text, the extension sends the selected text and
+        the target language to a translation service. It also stores, on this device only: on/off
+        state, language pair, monthly character quota, an anonymous installation id, and a
+        short-lived auth token.
+      </p>
+      <h2>Where selected text goes</h2>
+      <p>Translation is attempted in this order:</p>
+      <ul>
+        <li>
+          Our Cloud Run API
+          <code>https://zero-click-translate-api-475510566240.europe-west1.run.app</code>
+          (<code>/register</code> once, then <code>/translate</code>), which forwards text to
+          Google Cloud Translation
+        </li>
+        <li>Public Google Translate webpage endpoints, if the API is unavailable</li>
+        <li>MyMemory, if the Google webpage endpoints fail</li>
+      </ul>
+      <p>
+        Turning the extension off stops page injection. It then does not read selections or send
+        text.
+      </p>
+      <h2>Why the extension asks for site access</h2>
+      <p>
+        Broad site access is required so the overlay can appear on the page you are reading. The
+        extension does not scrape the rest of the page. It only uses the current selection.
+      </p>
+      <h2>What we do not do</h2>
+      <ul>
+        <li>Sell data</li>
+        <li>Use selected text for ads or profiling</li>
+        <li>Create user accounts</li>
+        <li>Run remote code from the store package</li>
+      </ul>
+      <h2>Contact</h2>
+      <p>
+        Open an issue at
+        <a href="https://github.com/zmovo/zero-click-translate/issues"
+          >github.com/zmovo/zero-click-translate</a
+        >.
+      </p>
+    </main>
+  </body>
+</html>

@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Zero Click Translate — overlay</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        width: 1280px;
+        height: 800px;
+        overflow: hidden;
+        background: #e8eef6;
+        font: 16px/1.55 -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC',
+          'Microsoft YaHei', sans-serif;
+        color: #0f172a;
+      }
+      .browser {
+        width: 1280px;
+        height: 800px;
+        background: #fff;
+      }
+      .chrome {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        height: 52px;
+        padding: 0 16px;
+        background: #f1f5f9;
+        border-bottom: 1px solid #e2e8f0;
+      }
+      .dots span {
+        display: inline-block;
+        width: 10px;
+        height: 10px;
+        margin-right: 6px;
+        border-radius: 50%;
+        background: #cbd5e1;
+      }
+      .omnibox {
+        flex: 1;
+        height: 30px;
+        padding: 0 12px;
+        border-radius: 999px;
+        background: #fff;
+        color: #64748b;
+        font-size: 13px;
+        line-height: 30px;
+      }
+      .article {
+        position: relative;
+        box-sizing: border-box;
+        height: 748px;
+        padding: 56px 88px 40px;
+        background: linear-gradient(180deg, #fff 0%, #f8fafc 100%);
+      }
+      .kicker {
+        margin: 0 0 10px;
+        color: #2563eb;
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+      h1 {
+        margin: 0 0 18px;
+        max-width: 640px;
+        font-size: 34px;
+        letter-spacing: -0.03em;
+      }
+      p {
+        max-width: 640px;
+        color: #334155;
+        font-size: 18px;
+      }
+      mark {
+        background: #dbeafe;
+        color: inherit;
+        padding: 0 2px;
+      }
+      #zct-popup {
+        position: absolute;
+        left: 720px;
+        top: 248px;
+      }
+      .zct-card {
+        box-sizing: border-box;
+        width: 320px;
+        padding: 10px 12px 12px;
+        border: 1px solid rgba(15, 23, 42, 0.12);
+        border-radius: 10px;
+        background: #fff;
+        box-shadow: 0 8px 28px rgba(15, 23, 42, 0.16);
+      }
+      .zct-badge {
+        margin-bottom: 6px;
+        color: #64748b;
+        font-size: 11px;
+        font-weight: 600;
+        letter-spacing: 0.04em;
+      }
+      .zct-source {
+        margin-bottom: 6px;
+        color: #64748b;
+        font-size: 12px;
+      }
+      .zct-body {
+        font-size: 14px;
+        line-height: 1.55;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="browser">
+      <div class="chrome">
+        <div class="dots"><span></span><span></span><span></span></div>
+        <div class="omnibox">https://example.com/read</div>
+      </div>
+      <div class="article">
+        <p class="kicker">Reading</p>
+        <h1>Select a sentence. The translation appears beside it.</h1>
+        <p>
+          Zero Click Translate stays out of the way until you highlight something.
+          <mark>Attention is all you need.</mark>
+          There is no extra button in the happy path — the card just shows up.
+        </p>
+        <p>Turn it off from the toolbar when you only want to copy.</p>
+        <div id="zct-popup">
+          <div class="zct-card">
+            <div class="zct-badge">已捕捉 · Cloud</div>
+            <div class="zct-source">选区：Attention is all you need.</div>
+            <div class="zct-body">注意力就是你所需要的一切。</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>
