@@ -3,7 +3,7 @@
   "name": "__MSG_extName__",
   "description": "__MSG_extDescription__",
   "default_locale": "en",
-  "version": "0.2.0",
+  "version": "0.4.0",
   "minimum_chrome_version": "114",
   "action": {
     "default_popup": "popup.html",
@@ -12,15 +12,6 @@
   "background": {
     "service_worker": "background.js"
   },
-  "content_scripts": [
-    {
-      "matches": ["https://*/*", "http://*/*"],
-      "js": ["langs.js", "content.js"],
-      "css": ["content.css"],
-      "run_at": "document_idle",
-      "all_frames": true
-    }
-  ],
   "permissions": ["scripting", "storage"],
   "host_permissions": [
     "http://*/*",

@@ -1,17 +1,55 @@
 'use strict';
 
+try {
+  importScripts('secrets.js');
+} catch (_error) {
+  // secrets.js is optional and must not be committed.
+}
+
 const CACHE_LIMIT = 80;
 const FETCH_TIMEOUT_MS = 8000;
 const MYMEMORY_MAX_Q_BYTES = 500;
 const translationCache = new Map();
 const textEncoder = new TextEncoder();
 
+const PAGE_SCRIPT_ID = 'zct-content';
+const LOG = '[划词即翻译]';
+const ENGINE_ENDPOINTS = {
+  Google官方: 'translation.googleapis.com/language/translate/v2',
+  Google网页: 'translate.googleapis.com/translate_a/single',
+  Google备用: 'clients5.google.com/translate_a/t',
+  MyMemory: 'api.mymemory.translated.net/get',
+  缓存: 'memory-cache',
+};
+let applyEnabledChain = Promise.resolve();
+
+console.info(LOG, '官方API Key', getGoogleApiKey() ? '已加载' : '未加载');
+
 chrome.runtime.onInstalled.addListener(() => {
-  injectIntoOpenTabs();
+  restoreInjectionFromStorage();
+});
+
+chrome.runtime.onStartup.addListener(() => {
+  restoreInjectionFromStorage();
+});
+
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area === 'local' && changes.enabled) {
+    applyEnabledState(changes.enabled.newValue !== false).catch(() => {});
+  }
 });
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-  if (!message || message.type !== 'TRANSLATE') return undefined;
+  if (!message || !message.type) return undefined;
+
+  if (message.type === 'ZCT_APPLY_ENABLED') {
+    applyEnabledState(message.enabled !== false)
+      .then(() => sendResponse({ ok: true }))
+      .catch(() => sendResponse({ ok: false }));
+    return true;
+  }
+
+  if (message.type !== 'TRANSLATE') return undefined;
 
   translate(message)
     .then(sendResponse)
@@ -62,6 +100,112 @@ async function tabHasLiveContentScript(tabId) {
   }
 }
 
+async function restoreInjectionFromStorage() {
+  let enabled = true;
+  try {
+    const data = await chrome.storage.local.get({ enabled: true });
+    enabled = data.enabled !== false;
+  } catch (_error) {
+    enabled = true;
+  }
+  await applyEnabledState(enabled);
+}
+
+async function applyEnabledState(enabled) {
+  const run = async () => {
+    await syncEnabledBadge();
+    if (enabled) {
+      await registerPageScripts();
+      await injectIntoOpenTabs();
+      return;
+    }
+    await unregisterPageScripts();
+    await notifyTabsDisabled();
+  };
+  const pending = applyEnabledChain.then(run, run);
+  applyEnabledChain = pending.catch(() => {});
+  return pending;
+}
+
+async function registerPageScripts() {
+  let existing = [];
+  try {
+    existing = await chrome.scripting.getRegisteredContentScripts({
+      ids: [PAGE_SCRIPT_ID],
+    });
+  } catch (_error) {
+    existing = [];
+  }
+  if (existing.some((item) => item.id === PAGE_SCRIPT_ID)) return;
+
+  try {
+    await chrome.scripting.registerContentScripts([
+      {
+        id: PAGE_SCRIPT_ID,
+        matches: ['http://*/*', 'https://*/*'],
+        js: ['langs.js', 'content.js'],
+        css: ['content.css'],
+        runAt: 'document_idle',
+        allFrames: true,
+        persistAcrossSessions: true,
+      },
+    ]);
+  } catch (error) {
+    const message = String(error && error.message ? error.message : error);
+    if (/duplicate script id/i.test(message)) return;
+    throw error;
+  }
+}
+
+async function unregisterPageScripts() {
+  try {
+    await chrome.scripting.unregisterContentScripts({ ids: [PAGE_SCRIPT_ID] });
+  } catch (_error) {
+    // Already unregistered.
+  }
+}
+
+async function notifyTabsDisabled() {
+  let tabs = [];
+  try {
+    tabs = await chrome.tabs.query({ url: ['http://*/*', 'https://*/*'] });
+  } catch (_error) {
+    return;
+  }
+
+  await Promise.all(
+    tabs.map(async (tab) => {
+      if (!tab.id || tab.discarded) return;
+      try {
+        await chrome.tabs.sendMessage(tab.id, {
+          type: 'ZCT_SET_ENABLED',
+          enabled: false,
+        });
+      } catch (_error) {
+        // Tab has no live content script.
+      }
+    })
+  );
+}
+
+async function syncEnabledBadge() {
+  let enabled = true;
+  try {
+    const data = await chrome.storage.local.get({ enabled: true });
+    enabled = data.enabled !== false;
+  } catch (_error) {
+    enabled = true;
+  }
+
+  const offText = chrome.i18n.getMessage('badgeOff') || 'OFF';
+  try {
+    await chrome.action.setBadgeBackgroundColor({ color: '#6b7280' });
+    await chrome.action.setBadgeText({ text: enabled ? '' : offText });
+  } catch (_error) {
+    // Badge APIs are unavailable in some contexts.
+  }
+}
+
 async function translate({ text, from, to, langA, langB, auto }) {
   const source = (text || '').trim();
   if (!source) {
@@ -73,54 +217,150 @@ async function translate({ text, from, to, langA, langB, auto }) {
   const pairA = toLangCode(langA || 'zh-CN');
   const pairB = toLangCode(langB || 'en');
 
+  const hasOfficialKey = Boolean(getGoogleApiKey());
+  const officialKey = hasOfficialKey ? '已加载' : '未加载';
+  const trace = [];
+  const note = (action, name, extra) => {
+    const line = extra ? `${action} ${name} ${extra}` : `${action} ${name}`;
+    trace.push(line);
+    console.info(LOG, line, ENGINE_ENDPOINTS[name] || '');
+  };
+
+  note('开始', hasOfficialKey ? 'Google官方' : '无官方Key', officialKey);
+
   if (auto) {
     const probeTl = tl || pairB;
-    const probed = await translateGoogleGtx(source, 'auto', probeTl);
+    const probeName = hasOfficialKey ? 'Google官方' : 'Google网页';
+    note('探测', probeName);
+    const probed = hasOfficialKey
+      ? await translateGoogleOfficial(source, 'auto', probeTl)
+      : await translateGoogleGtx(source, 'auto', probeTl);
     if (probed.ok && probed.detected && sameLangFamily(probed.detected, probeTl)) {
       sl = toLangCode(probed.detected);
       tl = sameLangFamily(sl, pairA) ? pairB : pairA;
+      note('探测完成，对调', probeName, `${probed.detected} -> ${sl}|${tl}`);
     } else if (probed.ok && probed.translation) {
       sl = toLangCode(probed.detected || sl);
       putCache(`${sl}|${probeTl}|${source}`, probed.translation);
+      note('命中', probeName);
       return {
         ok: true,
         translation: probed.translation,
-        engine: 'Google',
+        engine: probeName,
+        endpoint: ENGINE_ENDPOINTS[probeName],
+        officialKey,
+        trace,
         from: sl,
         to: probeTl,
       };
+    } else {
+      note('探测失败', probeName, probed.error || '无结果');
     }
   }
 
   const cacheKey = `${sl}|${tl}|${source}`;
   const cached = takeCache(cacheKey);
   if (cached) {
-    return { ok: true, translation: cached, engine: '缓存', from: sl, to: tl };
+    note('命中', '缓存');
+    return {
+      ok: true,
+      translation: cached,
+      engine: '缓存',
+      endpoint: ENGINE_ENDPOINTS['缓存'],
+      officialKey,
+      trace,
+      from: sl,
+      to: tl,
+    };
   }
 
-  const engines = [
-    { name: 'Google', run: translateGoogleGtx },
+  const engines = [];
+  if (hasOfficialKey) {
+    engines.push({ name: 'Google官方', run: translateGoogleOfficial });
+  }
+  engines.push(
+    { name: 'Google网页', run: translateGoogleGtx },
     { name: 'Google备用', run: translateGoogleClients5 },
-    { name: 'MyMemory', run: translateMyMemory },
-  ];
+    { name: 'MyMemory', run: translateMyMemory }
+  );
   let lastError = '翻译失败';
 
   for (const engine of engines) {
+    note('尝试', engine.name);
     const result = await engine.run(source, sl, tl);
     if (result.ok && result.translation) {
       putCache(cacheKey, result.translation);
+      note('命中', engine.name);
       return {
         ok: true,
         translation: result.translation,
         engine: engine.name,
+        endpoint: ENGINE_ENDPOINTS[engine.name],
+        officialKey,
+        trace,
         from: sl,
         to: tl,
       };
     }
-    if (result && result.error) lastError = `${engine.name}：${result.error}`;
+    lastError = `${engine.name}：${(result && result.error) || '无结果'}`;
+    note('失败', engine.name, result && result.error ? result.error : '无结果');
   }
 
-  return { ok: false, error: lastError };
+  console.info(LOG, '全部失败', lastError);
+  return { ok: false, error: lastError, officialKey, trace };
+}
+
+function getGoogleApiKey() {
+  return String(globalThis.GOOGLE_TRANSLATE_API_KEY || '').trim();
+}
+
+function decodeHtmlEntities(text) {
+  return String(text || '')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>');
+}
+
+async function translateGoogleOfficial(text, sl, tl) {
+  const key = getGoogleApiKey();
+  if (!key) return { ok: false, error: '未配置 Google Translate API Key' };
+
+  const url = new URL('https://translation.googleapis.com/language/translate/v2');
+  url.searchParams.set('key', key);
+
+  const body = {
+    q: text,
+    target: tl,
+    format: 'text',
+  };
+  if (sl && sl !== 'auto') body.source = sl;
+
+  const payload = await requestJson(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json; charset=UTF-8' },
+    body: JSON.stringify(body),
+  });
+  if (!payload.ok) {
+    const apiMessage =
+      payload.data && payload.data.error && payload.data.error.message;
+    return { ok: false, error: apiMessage || payload.error || 'Google API 请求失败' };
+  }
+
+  const item =
+    payload.data &&
+    payload.data.data &&
+    payload.data.data.translations &&
+    payload.data.data.translations[0];
+  const translation = item && decodeHtmlEntities(item.translatedText);
+  if (!translation) return { ok: false, error: '没有返回翻译结果' };
+
+  return {
+    ok: true,
+    translation,
+    detected: item.detectedSourceLanguage || '',
+  };
 }
 
 async function translateGoogleGtx(text, sl, tl) {
@@ -207,15 +447,23 @@ async function requestJson(url, options) {
     clearTimeout(timer);
   }
 
-  if (!response.ok) {
-    return { ok: false, error: `翻译接口错误（${response.status}）` };
+  let data = null;
+  try {
+    data = await response.json();
+  } catch (_error) {
+    data = null;
   }
 
-  try {
-    return { ok: true, data: await response.json() };
-  } catch (_error) {
-    return { ok: false, error: '翻译结果解析失败' };
+  if (!response.ok) {
+    const apiMessage = data && data.error && data.error.message;
+    return {
+      ok: false,
+      error: apiMessage || `翻译接口错误（${response.status}）`,
+      data,
+    };
   }
+
+  return { ok: true, data };
 }
 
 function parseGtx(data) {

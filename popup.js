@@ -2,54 +2,95 @@
 
 const selectA = document.getElementById('langA');
 const selectB = document.getElementById('langB');
+const enabledEl = document.getElementById('enabled');
+const powerLabel = document.getElementById('powerLabel');
 const defaultA = globalThis.ZCT_DEFAULT_LANG_A || 'zh-CN';
 const defaultB = globalThis.ZCT_DEFAULT_LANG_B || 'en';
 let lastA = defaultA;
 let lastB = defaultB;
+let langRecent = [defaultA, defaultB];
 
-fillSelect(selectA);
-fillSelect(selectB);
+if (powerLabel && globalThis.chrome && chrome.i18n) {
+  const label = chrome.i18n.getMessage('toggleTranslate') || 'Translate';
+  powerLabel.textContent = label;
+  enabledEl.setAttribute('aria-label', label);
+}
 
 if (globalThis.chrome && chrome.storage && chrome.storage.local) {
   chrome.storage.local
-    .get({ langA: defaultA, langB: defaultB })
+    .get({ langA: defaultA, langB: defaultB, enabled: true, langRecent: [] })
     .then((data) => {
       lastA = data.langA || defaultA;
       lastB = data.langB || defaultB;
       if (lastA === lastB) lastB = lastA === 'en' ? defaultA : defaultB;
-      selectA.value = lastA;
-      selectB.value = lastB;
+      langRecent = rememberLang(lastA, rememberLang(lastB, data.langRecent || []));
+      enabledEl.checked = data.enabled !== false;
+      renderLangSelects();
     });
 } else {
-  selectA.value = lastA;
-  selectB.value = lastB;
+  renderLangSelects();
 }
 
-selectA.addEventListener('change', onChange);
-selectB.addEventListener('change', onChange);
+selectA.addEventListener('change', onLangChange);
+selectB.addEventListener('change', onLangChange);
+enabledEl.addEventListener('change', onEnabledChange);
 
-function fillSelect(select) {
-  const languages = globalThis.ZCT_LANGUAGES || [];
-  languages.forEach((item) => {
+function rememberLang(code, recent) {
+  if (!code) return recent.slice();
+  return [code].concat(recent.filter((item) => item !== code));
+}
+
+function orderedLanguages() {
+  const all = globalThis.ZCT_LANGUAGES || [];
+  const seen = new Set();
+  const ordered = [];
+  langRecent.forEach((code) => {
+    const item = all.find((lang) => lang.code === code);
+    if (item && !seen.has(item.code)) {
+      seen.add(item.code);
+      ordered.push(item);
+    }
+  });
+  all.forEach((item) => {
+    if (!seen.has(item.code)) ordered.push(item);
+  });
+  return ordered;
+}
+
+function fillSelect(select, selected) {
+  select.innerHTML = '';
+  orderedLanguages().forEach((item) => {
     const option = document.createElement('option');
     option.value = item.code;
     option.textContent = item.name;
     select.appendChild(option);
   });
+  if (selected) select.value = selected;
 }
 
-function onChange(event) {
+function renderLangSelects() {
+  fillSelect(selectA, lastA);
+  fillSelect(selectB, lastB);
+}
+
+function onLangChange(event) {
   let nextA = selectA.value;
   let nextB = selectB.value;
   if (nextA === nextB) {
     if (event.target === selectA) nextB = lastA;
     else nextA = lastB;
-    selectA.value = nextA;
-    selectB.value = nextB;
   }
   lastA = nextA;
   lastB = nextB;
+  langRecent = rememberLang(event.target.value, rememberLang(nextA, rememberLang(nextB, langRecent)));
+  renderLangSelects();
   if (globalThis.chrome && chrome.storage && chrome.storage.local) {
-    chrome.storage.local.set({ langA: nextA, langB: nextB });
+    chrome.storage.local.set({ langA: nextA, langB: nextB, langRecent });
+  }
+}
+
+function onEnabledChange() {
+  if (globalThis.chrome && chrome.storage && chrome.storage.local) {
+    chrome.storage.local.set({ enabled: enabledEl.checked });
   }
 }

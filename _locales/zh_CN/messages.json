@@ -1,8 +1,14 @@
 {
   "extName": {
-    "message": "划词即翻译"
+    "message": "划词即翻译 – Instant Translator"
   },
   "extDescription": {
-    "message": "选中文字即可翻译，默认中英互译，结果显示在选区旁边。"
+    "message": "选中即译。默认中英互译，也可更换语言对。"
+  },
+  "toggleTranslate": {
+    "message": "翻译"
+  },
+  "badgeOff": {
+    "message": "关"
   }
 }

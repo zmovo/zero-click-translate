@@ -1,8 +1,14 @@
 {
   "extName": {
-    "message": "Zero Click Translate"
+    "message": "Zero Click Translate – Instant Translator"
   },
   "extDescription": {
-    "message": "Select text to see a translation beside it. Defaults to Chinese ↔ English."
+    "message": "Instant translator for selected text. Zero-click Chinese ↔ English, plus more language pairs."
+  },
+  "toggleTranslate": {
+    "message": "Translate"
+  },
+  "badgeOff": {
+    "message": "OFF"
   }
 }

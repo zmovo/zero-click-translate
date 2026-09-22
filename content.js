@@ -21,6 +21,8 @@
   let lastSelectEndAt = 0;
   let langA = globalThis.ZCT_DEFAULT_LANG_A || 'zh-CN';
   let langB = globalThis.ZCT_DEFAULT_LANG_B || 'en';
+  let enabled = false;
+  let settingsReady = false;
 
   console.info(LOG, '已注入', location.href);
   removeExtraPopups();
@@ -34,19 +36,40 @@
   window.addEventListener('resize', onViewportChange, true);
   chrome.runtime.onMessage.addListener(onRuntimeMessage);
 
-  const popupObserver = new MutationObserver(() => {
-    if (!isCurrentInstance()) {
-      teardown();
-      return;
+  // Only watch direct children of <html>. subtree:true on Claude/ChatGPT
+  // fires on every streamed token and can throw contains() TypeError.
+  const popupObserver = new MutationObserver((records) => {
+    try {
+      if (!isRuntimeValid() || !isCurrentInstance()) {
+        teardown();
+        return;
+      }
+      if (!enabled) return;
+      const addedOurs = records.some((record) =>
+        Array.from(record.addedNodes).some((node) => node && node.id === POPUP_ID)
+      );
+      if (addedOurs) removeExtraPopups();
+    } catch (_error) {
+      // Host pages mutate constantly; never throw into the page.
     }
-    removeExtraPopups();
   });
-  popupObserver.observe(document.documentElement, { childList: true });
+  try {
+    popupObserver.observe(document.documentElement, { childList: true });
+  } catch (_error) {
+    // Ignore documents that replace <html> before observe().
+  }
 
   function onLangPairChanged(changes, area) {
     if (area !== 'local') return;
     if (changes.langA && changes.langA.newValue) langA = changes.langA.newValue;
     if (changes.langB && changes.langB.newValue) langB = changes.langB.newValue;
+    if (changes.enabled) {
+      enabled = changes.enabled.newValue !== false;
+      if (!enabled) {
+        destroyAllPopups();
+        teardown();
+      }
+    }
   }
 
   async function loadLangPair() {
@@ -54,18 +77,39 @@
       const data = await chrome.storage.local.get({
         langA: globalThis.ZCT_DEFAULT_LANG_A || 'zh-CN',
         langB: globalThis.ZCT_DEFAULT_LANG_B || 'en',
+        enabled: true,
       });
       langA = data.langA || globalThis.ZCT_DEFAULT_LANG_A || 'zh-CN';
       langB = data.langB || globalThis.ZCT_DEFAULT_LANG_B || 'en';
+      enabled = data.enabled !== false;
     } catch (_error) {
-      // Keep defaults if storage is unavailable.
+      enabled = true;
+    } finally {
+      settingsReady = true;
+      if (!enabled) {
+        destroyAllPopups();
+        teardown();
+      }
     }
   }
 
   function onRuntimeMessage(message, _sender, sendResponse) {
-    if (!message || message.type !== 'ZCT_PING') return undefined;
-    sendResponse({ ok: true, instanceId });
-    return false;
+    if (!message) return undefined;
+    if (message.type === 'ZCT_PING') {
+      sendResponse({ ok: true, instanceId });
+      return false;
+    }
+    if (message.type === 'ZCT_SET_ENABLED') {
+      enabled = message.enabled !== false;
+      settingsReady = true;
+      if (!enabled) {
+        destroyAllPopups();
+        teardown();
+      }
+      sendResponse({ ok: true });
+      return false;
+    }
+    return undefined;
   }
 
   function isRuntimeValid() {
@@ -95,6 +139,19 @@
     } catch (_error) {
       // Ignore if storage is already unavailable.
     }
+    try {
+      chrome.runtime.onMessage.removeListener(onRuntimeMessage);
+    } catch (_error) {
+      // Ignore if the extension context is already gone.
+    }
+    globalThis.__ZCT_LOADED__ = false;
+    try {
+      if (document.documentElement.getAttribute(INSTANCE_ATTR) === instanceId) {
+        document.documentElement.removeAttribute(INSTANCE_ATTR);
+      }
+    } catch (_error) {
+      // Ignore detached documents.
+    }
     if (missTimer) {
       window.clearTimeout(missTimer);
       missTimer = 0;
@@ -107,7 +164,7 @@
       return;
     }
     if (event.button !== 0) return;
-    if (isInsidePopup(event.target)) return;
+    if (eventTouchesPopup(event)) return;
     hidePopup();
   }
 
@@ -124,7 +181,7 @@
       teardown();
       return;
     }
-    if (popupEl && event.target && popupEl.contains(event.target)) return;
+    if (eventTouchesPopup(event)) return;
     hidePopup();
   }
 
@@ -134,7 +191,8 @@
       return;
     }
     if (event.button != null && event.button !== 0) return;
-    if (isInsidePopup(event.target)) return;
+    if (eventTouchesPopup(event)) return;
+    if (!settingsReady || !enabled) return;
 
     const now = Date.now();
     if (now - lastSelectEndAt < 40) return;
@@ -285,6 +343,8 @@
       failed: 'Failed',
       engine(name) {
         if (name === '缓存') return 'Cache';
+        if (name === 'Google官方') return 'Google official';
+        if (name === 'Google网页') return 'Google webpage';
         if (name === 'Google备用') return 'Google fallback';
         return name || '';
       },
@@ -299,13 +359,41 @@
     return editable.getAttribute('contenteditable') !== 'false';
   }
 
-  function isInsidePopup(node) {
-    if (!popupEl || !node) return false;
-    if (node === popupEl) return true;
-    if (typeof node.closest === 'function' && node.closest(`#${POPUP_ID}`)) {
-      return true;
+  function isDomNode(value) {
+    try {
+      return Boolean(value) && typeof value.nodeType === 'number' && value.nodeType > 0;
+    } catch (_error) {
+      return false;
     }
-    return popupEl.contains(node);
+  }
+
+  function isInsidePopup(node) {
+    if (!popupEl || !isDomNode(node)) return false;
+    if (node === popupEl) return true;
+    if (node.nodeType === 1 && typeof node.closest === 'function') {
+      try {
+        if (node.closest(`#${POPUP_ID}`)) return true;
+      } catch (_error) {
+        // Detached or foreign-realm elements.
+      }
+    }
+    try {
+      return typeof popupEl.contains === 'function' && popupEl.contains(node);
+    } catch (_error) {
+      return false;
+    }
+  }
+
+  function eventTouchesPopup(event) {
+    if (!event) return false;
+    if (typeof event.composedPath === 'function') {
+      try {
+        return event.composedPath().some((node) => isInsidePopup(node));
+      } catch (_error) {
+        // Fall through to event.target.
+      }
+    }
+    return isInsidePopup(event.target);
   }
 
   async function translateSelection(snapshot) {
@@ -341,7 +429,11 @@
     if (result && result.ok) {
       const engineName = copy.engine(result.engine);
       const engine = engineName ? ` · ${engineName}` : '';
-      console.info(LOG, '翻译成功', engine, result.translation);
+      console.info(LOG, '翻译成功', result.engine || engineName, result.endpoint || '', result.translation);
+      console.info(LOG, '官方Key', result.officialKey || '未知');
+      if (result.trace && result.trace.length) {
+        console.info(LOG, '链路', result.trace.join(' → '));
+      }
       renderPopup({
         state: 'ready',
         badge: `${copy.captured}${engine}`,
@@ -355,6 +447,9 @@
 
     const error = (result && result.error) || copy.failed;
     console.info(LOG, '已捕捉但翻译失败', error);
+    if (result && result.trace && result.trace.length) {
+      console.info(LOG, '链路', result.trace.join(' → '));
+    }
     renderPopup({
       state: 'error',
       badge: `${copy.captured} · ${copy.failed}`,
@@ -406,6 +501,25 @@
       el.remove();
     });
     popupEl = keep;
+  }
+
+  function destroyAllPopups() {
+    requestSeq += 1;
+    if (missTimer) {
+      window.clearTimeout(missTimer);
+      missTimer = 0;
+    }
+    Array.from(document.querySelectorAll(`#${POPUP_ID}`)).forEach((el) => {
+      try {
+        if (typeof el.hidePopover === 'function' && el.matches(':popover-open')) {
+          el.hidePopover();
+        }
+      } catch (_error) {
+        // Ignore popovers that are already gone.
+      }
+      el.remove();
+    });
+    popupEl = null;
   }
 
   function attachPopup(popup) {
