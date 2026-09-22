@@ -39,6 +39,10 @@
   line-height: 1.55;
 }
 
+#zct-popup .zct-badge:empty {
+  display: none;
+}
+
 #zct-popup .zct-badge {
   display: block;
   margin-bottom: 6px;
@@ -88,4 +92,24 @@
 #zct-popup .zct-card[data-state='error'] .zct-badge,
 #zct-popup .zct-card[data-state='error'] .zct-body {
   color: #b91c1c;
+}
+
+#zct-popup .zct-card[data-state='quota'] .zct-body {
+  color: #334155;
+}
+
+#zct-popup .zct-action {
+  display: inline-block;
+  margin-top: 10px;
+  padding: 5px 10px;
+  border: none;
+  border-radius: 6px;
+  background: #2563eb;
+  color: #fff;
+  font: 13px/1.2 inherit;
+  cursor: pointer;
+}
+
+#zct-popup .zct-action[hidden] {
+  display: none;
 }

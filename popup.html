@@ -76,6 +76,40 @@
         flex: none;
         color: #64748b;
       }
+      .quota {
+        margin-top: 10px;
+        padding-top: 8px;
+        border-top: 1px solid #e5e7eb;
+        color: #64748b;
+        font-size: 12px;
+      }
+      .quota-label {
+        font-weight: 600;
+      }
+      .quota-count {
+        margin-top: 2px;
+        color: #0f172a;
+        font-variant-numeric: tabular-nums;
+      }
+      .quota-bar {
+        margin-top: 6px;
+        height: 4px;
+        border-radius: 999px;
+        background: #e5e7eb;
+        overflow: hidden;
+      }
+      .quota-bar span {
+        display: block;
+        height: 100%;
+        width: 0;
+        background: #94a3b8;
+      }
+      .quota-hint {
+        margin-top: 6px;
+      }
+      .quota-hint[hidden] {
+        display: none;
+      }
     </style>
   </head>
   <body>
@@ -89,6 +123,14 @@
       <span class="swap">↔</span>
       <select id="langB" aria-label="Language B"></select>
     </div>
+    <div class="quota" id="quota">
+      <div class="quota-label">Today</div>
+      <div class="quota-count" id="quotaCount">0 / 3,000</div>
+      <div class="quota-bar" aria-hidden="true"><span id="quotaBar"></span></div>
+      <div class="quota-hint" id="quotaHint" hidden>Running low for today</div>
+    </div>
+    <script src="entitlementManager.js"></script>
+    <script src="quotaManager.js"></script>
     <script src="langs.js"></script>
     <script src="popup.js"></script>
   </body>

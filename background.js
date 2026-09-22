@@ -1,6 +1,18 @@
 'use strict';
 
 try {
+  importScripts('entitlementManager.js');
+} catch (_error) {
+  // Entitlements stay Free if this helper is missing.
+}
+
+try {
+  importScripts('quotaManager.js');
+} catch (_error) {
+  // Translate without a quota gate if this helper is missing.
+}
+
+try {
   importScripts('secrets.js');
 } catch (_error) {
   // secrets.js is optional and must not be committed.
@@ -44,6 +56,13 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
   if (message.type === 'ZCT_APPLY_ENABLED') {
     applyEnabledState(message.enabled !== false)
+      .then(() => sendResponse({ ok: true }))
+      .catch(() => sendResponse({ ok: false }));
+    return true;
+  }
+
+  if (message.type === 'ZCT_UPGRADE') {
+    openUpgradePage()
       .then(() => sendResponse({ ok: true }))
       .catch(() => sendResponse({ ok: false }));
     return true;
@@ -206,10 +225,56 @@ async function syncEnabledBadge() {
   }
 }
 
+async function openUpgradePage() {
+  await chrome.tabs.create({ url: chrome.runtime.getURL('pricing.html') });
+}
+
+function countSourceChars(text) {
+  return globalThis.zctQuota && typeof globalThis.zctQuota.countChars === 'function'
+    ? globalThis.zctQuota.countChars(text)
+    : Array.from(String(text || '')).length;
+}
+
+async function allowTranslate(charCount) {
+  if (!globalThis.zctQuota || typeof globalThis.zctQuota.canTranslate !== 'function') {
+    return true;
+  }
+  try {
+    const gate = await globalThis.zctQuota.canTranslate(charCount);
+    return Boolean(gate && gate.ok);
+  } catch (_error) {
+    return true;
+  }
+}
+
+async function consumeQuota(charCount, engine) {
+  if (!charCount || engine === '缓存') return;
+  if (!globalThis.zctQuota || typeof globalThis.zctQuota.consume !== 'function') return;
+  try {
+    await globalThis.zctQuota.consume(charCount);
+  } catch (_error) {
+    // Never block a finished translation on quota bookkeeping.
+  }
+}
+
+async function finishOk(payload, charCount) {
+  await consumeQuota(charCount, payload.engine);
+  return payload;
+}
+
 async function translate({ text, from, to, langA, langB, auto }) {
   const source = (text || '').trim();
   if (!source) {
     return { ok: false, error: '没有可翻译的文本' };
+  }
+
+  const charCount = countSourceChars(source);
+  if (!(await allowTranslate(charCount))) {
+    return {
+      ok: false,
+      reason: 'QUOTA_EXCEEDED',
+      error: 'Free limit reached for today',
+    };
   }
 
   let sl = toLangCode(from);
@@ -243,16 +308,19 @@ async function translate({ text, from, to, langA, langB, auto }) {
       sl = toLangCode(probed.detected || sl);
       putCache(`${sl}|${probeTl}|${source}`, probed.translation);
       note('命中', probeName);
-      return {
-        ok: true,
-        translation: probed.translation,
-        engine: probeName,
-        endpoint: ENGINE_ENDPOINTS[probeName],
-        officialKey,
-        trace,
-        from: sl,
-        to: probeTl,
-      };
+      return finishOk(
+        {
+          ok: true,
+          translation: probed.translation,
+          engine: probeName,
+          endpoint: ENGINE_ENDPOINTS[probeName],
+          officialKey,
+          trace,
+          from: sl,
+          to: probeTl,
+        },
+        charCount
+      );
     } else {
       note('探测失败', probeName, probed.error || '无结果');
     }
@@ -262,16 +330,19 @@ async function translate({ text, from, to, langA, langB, auto }) {
   const cached = takeCache(cacheKey);
   if (cached) {
     note('命中', '缓存');
-    return {
-      ok: true,
-      translation: cached,
-      engine: '缓存',
-      endpoint: ENGINE_ENDPOINTS['缓存'],
-      officialKey,
-      trace,
-      from: sl,
-      to: tl,
-    };
+    return finishOk(
+      {
+        ok: true,
+        translation: cached,
+        engine: '缓存',
+        endpoint: ENGINE_ENDPOINTS['缓存'],
+        officialKey,
+        trace,
+        from: sl,
+        to: tl,
+      },
+      charCount
+    );
   }
 
   const engines = [];
@@ -291,16 +362,19 @@ async function translate({ text, from, to, langA, langB, auto }) {
     if (result.ok && result.translation) {
       putCache(cacheKey, result.translation);
       note('命中', engine.name);
-      return {
-        ok: true,
-        translation: result.translation,
-        engine: engine.name,
-        endpoint: ENGINE_ENDPOINTS[engine.name],
-        officialKey,
-        trace,
-        from: sl,
-        to: tl,
-      };
+      return finishOk(
+        {
+          ok: true,
+          translation: result.translation,
+          engine: engine.name,
+          endpoint: ENGINE_ENDPOINTS[engine.name],
+          officialKey,
+          trace,
+          from: sl,
+          to: tl,
+        },
+        charCount
+      );
     }
     lastError = `${engine.name}：${(result && result.error) || '无结果'}`;
     note('失败', engine.name, result && result.error ? result.error : '无结果');

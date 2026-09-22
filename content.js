@@ -426,6 +426,18 @@
 
     if (id !== requestSeq) return;
 
+    if (result && result.reason === 'QUOTA_EXCEEDED') {
+      renderPopup({
+        state: 'quota',
+        badge: '',
+        source: '',
+        body: 'Free limit reached for today\nResets tomorrow',
+        action: 'Upgrade',
+        rect: snapshot.rect,
+      });
+      return;
+    }
+
     if (result && result.ok) {
       const engineName = copy.engine(result.engine);
       const engine = engineName ? ` · ${engineName}` : '';
@@ -465,6 +477,14 @@
     const existing = document.getElementById(POPUP_ID);
     if (existing) {
       popupEl = existing;
+      if (!popupEl.querySelector('.zct-action')) {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'zct-action';
+        button.hidden = true;
+        const card = popupEl.querySelector('.zct-card');
+        if (card) card.appendChild(button);
+      }
       attachPopup(popupEl);
       return popupEl;
     }
@@ -477,6 +497,7 @@
       '<div class="zct-badge"></div>' +
       '<div class="zct-source"></div>' +
       '<div class="zct-body"></div>' +
+      '<button type="button" class="zct-action" hidden></button>' +
       '</div>';
 
     attachPopup(popupEl);
@@ -526,19 +547,39 @@
     if (popup.parentElement !== document.documentElement) {
       document.documentElement.appendChild(popup);
     }
+    if (popup.dataset.zctBound === '1') return;
+    popup.dataset.zctBound = '1';
+    popup.addEventListener('click', onPopupClick);
   }
 
-  function renderPopup({ state, badge, source, sourceLabel, body, rect }) {
+  function onPopupClick(event) {
+    const button = event.target && event.target.closest && event.target.closest('.zct-action');
+    if (!button || button.hidden) return;
+    event.preventDefault();
+    event.stopPropagation();
+    try {
+      chrome.runtime.sendMessage({ type: 'ZCT_UPGRADE' });
+    } catch (_error) {
+      // Extension context may be gone.
+    }
+  }
+
+  function renderPopup({ state, badge, source, sourceLabel, body, action, rect }) {
     const popup = ensurePopup();
     const card = popup.querySelector('.zct-card');
     const badgeEl = popup.querySelector('.zct-badge');
     const sourceEl = popup.querySelector('.zct-source');
     const bodyEl = popup.querySelector('.zct-body');
+    const actionEl = popup.querySelector('.zct-action');
 
     card.dataset.state = state;
-    badgeEl.textContent = badge;
+    badgeEl.textContent = badge || '';
     sourceEl.textContent = source ? `${sourceLabel || '选区：'}${source}` : '';
     bodyEl.textContent = body;
+    if (actionEl) {
+      actionEl.hidden = !action;
+      actionEl.textContent = action || '';
+    }
 
     if (missTimer) {
       window.clearTimeout(missTimer);
