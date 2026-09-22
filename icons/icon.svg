@@ -1,27 +1,13 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="Zero Click Translate">
-  <!-- Google-colored outer plate -->
-  <defs>
-    <clipPath id="round">
-      <rect x="4" y="4" width="120" height="120" rx="28"/>
-    </clipPath>
-  </defs>
-  <g clip-path="url(#round)">
-    <rect x="4" y="4" width="60" height="60" fill="#4285F4"/>
-    <rect x="64" y="4" width="60" height="60" fill="#EA4335"/>
-    <rect x="4" y="64" width="60" height="60" fill="#34A853"/>
-    <rect x="64" y="64" width="60" height="60" fill="#FBBC05"/>
-  </g>
-  <!-- White nested plate -->
-  <rect x="22" y="22" width="84" height="84" rx="20" fill="#FFFFFF"/>
-  <!-- Z -->
+  <rect x="4" y="4" width="120" height="120" rx="28" fill="#FFFFFF"/>
+  <rect x="4" y="4" width="120" height="120" rx="28" fill="none" stroke="#E5E7EB" stroke-width="2"/>
   <text
     x="64"
-    y="72"
+    y="74"
     text-anchor="middle"
-    dominant-baseline="middle"
     font-family="Segoe UI, Arial Black, Arial, sans-serif"
-    font-size="64"
+    font-size="72"
     font-weight="800"
-    fill="#4285F4"
+    fill="#111827"
   >Z</text>
 </svg>
