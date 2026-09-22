@@ -388,8 +388,24 @@ function decodeHtmlEntities(text) {
     .replace(/&gt;/g, '>');
 }
 
+async function getClientId() {
+  const result = await chrome.storage.local.get('clientId');
+
+  if (result.clientId) {
+    return result.clientId;
+  }
+
+  const clientId = crypto.randomUUID();
+
+  await chrome.storage.local.set({ clientId });
+
+  return clientId;
+}
+
 async function translateCloudRun(text, sl, tl) {
+  const clientId = await getClientId();
   const body = {
+    clientId,
     text,
     target: tl,
   };
