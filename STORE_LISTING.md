@@ -24,7 +24,7 @@ Zero Click Translate – Instant Translator
 
 **Short description** (132)
 
-Select text to see a translation beside it. Chinese ↔ English by default, or pick another pair.
+Select text to translate it instantly. Defaults to Chinese ↔ English.
 
 **Detailed description**
 
