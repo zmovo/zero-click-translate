@@ -301,12 +301,37 @@ async function translate({ text, from, to, langA, langB, auto }) {
     const probeName = 'Cloud';
     note('探测', probeName);
     const probed = await translateCloudRun(source, 'auto', probeTl);
-    if (probed.ok && probed.detected && sameLangFamily(probed.detected, probeTl)) {
-      sl = toLangCode(probed.detected);
+    const detected = probed.ok ? probed.detected : '';
+    const inPair =
+      detected &&
+      (sameLangFamily(detected, pairA) || sameLangFamily(detected, pairB));
+    if (probed.ok && detected && !inPair) {
+      if (sameLangFamily(probeTl, pairB) && probed.translation) {
+        sl = 'auto';
+        putCache(`${sl}|${pairB}|${source}`, probed.translation);
+        note('第三方语言', probeName, `${detected} -> ${pairB}`);
+        return finishOk(
+          {
+            ok: true,
+            translation: probed.translation,
+            engine: probeName,
+            endpoint: ENGINE_ENDPOINTS[probeName],
+            trace,
+            from: sl,
+            to: pairB,
+          },
+          charCount
+        );
+      }
+      sl = 'auto';
+      tl = pairB;
+      note('第三方语言，改翻目标', probeName, `${detected} -> ${pairB}`);
+    } else if (probed.ok && detected && sameLangFamily(detected, probeTl)) {
+      sl = toLangCode(detected);
       tl = sameLangFamily(sl, pairA) ? pairB : pairA;
-      note('探测完成，对调', probeName, `${probed.detected} -> ${sl}|${tl}`);
+      note('探测完成，对调', probeName, `${detected} -> ${sl}|${tl}`);
     } else if (probed.ok && probed.translation) {
-      sl = toLangCode(probed.detected || sl);
+      sl = toLangCode(detected || sl);
       putCache(`${sl}|${probeTl}|${source}`, probed.translation);
       note('命中', probeName);
       return finishOk(

@@ -81,6 +81,16 @@ globalThis.zctDetectPair = function zctDetectPair(text, langA, langB) {
   const auto = latinPair || scoreA === scoreB;
 
   if (!auto && scoreA > scoreB) {
+    // Latin letters also cover Spanish, French, and the other Latin languages.
+    // Confirm with detection instead of treating them as this pair language.
+    if (globalThis.ZCT_LATIN[globalThis.zctLangFamily(a)]) {
+      return {
+        from: a,
+        to: b,
+        auto: true,
+        badge: `${globalThis.zctShort(a)} ↔ ${globalThis.zctShort(b)}`,
+      };
+    }
     return {
       from: a,
       to: b,
@@ -89,6 +99,14 @@ globalThis.zctDetectPair = function zctDetectPair(text, langA, langB) {
     };
   }
   if (!auto && scoreB > scoreA) {
+    if (globalThis.ZCT_LATIN[globalThis.zctLangFamily(b)]) {
+      return {
+        from: b,
+        to: a,
+        auto: true,
+        badge: `${globalThis.zctShort(b)} ↔ ${globalThis.zctShort(a)}`,
+      };
+    }
     return {
       from: b,
       to: a,
