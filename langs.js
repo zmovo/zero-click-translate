@@ -65,6 +65,19 @@ globalThis.zctDetectPair = function zctDetectPair(text, langA, langB) {
     globalThis.ZCT_LATIN[globalThis.zctLangFamily(b)];
   const scoreA = globalThis.zctScoreLang(text, a);
   const scoreB = globalThis.zctScoreLang(text, b);
+  // Both pair languages are present. Majority-script detection would treat
+  // Chinese prose plus English identifiers as English and leave the Chinese
+  // untranslated. Send the left language as source so the whole selection
+  // lands in the right-hand language. Pure text still uses the branch below.
+  if (!latinPair && scoreA > 0 && scoreB > 0) {
+    return {
+      from: a,
+      to: b,
+      auto: false,
+      mixed: true,
+      badge: `${globalThis.zctShort(a)}+${globalThis.zctShort(b)} → ${globalThis.zctShort(b)}`,
+    };
+  }
   const auto = latinPair || scoreA === scoreB;
 
   if (!auto && scoreA > scoreB) {
